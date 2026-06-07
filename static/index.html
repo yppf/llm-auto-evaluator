@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>大模型自动评测台</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">E</div>
+          <div>
+            <h1>LLM Evaluator</h1>
+            <p>大模型自动评测台</p>
+          </div>
+        </div>
+        <nav class="nav-list">
+          <a href="#setup" class="active">接口配置</a>
+          <a href="#dataset">测试集</a>
+          <a href="#result">报告结果</a>
+        </nav>
+        <div class="side-panel">
+          <span class="side-label">评测方法</span>
+          <strong>固定测试集 + 规则评分</strong>
+          <p>先判断能否稳定完成任务，再比较成本、延迟和能力短板。</p>
+        </div>
+      </aside>
+
+      <main class="content">
+        <section class="topbar">
+          <div>
+            <span class="eyebrow">OpenAI-compatible Benchmark</span>
+            <h2>输入模型 API，一键生成能力排名和评测报告</h2>
+          </div>
+          <div class="status-pill" id="globalStatus">待配置</div>
+        </section>
+
+        <section class="panel settings-panel">
+          <div class="form-row compact settings-row">
+            <label>
+              <span>测试集</span>
+              <select id="datasetSelect">
+                <option value="default_zh">默认快速评测集</option>
+              </select>
+            </label>
+            <label>
+              <span>测试题数量</span>
+              <select id="caseLimit">
+                <option value="">完整测试集</option>
+                <option value="3">快速冒烟 3 题</option>
+                <option value="6">标准抽测 6 题</option>
+                <option value="9">扩展抽测 9 题</option>
+              </select>
+            </label>
+            <label class="temperature-field">
+              <span>温度</span>
+              <input id="temperature" type="number" min="0" max="1" step="0.1" value="0" />
+            </label>
+          </div>
+          <label class="judge-toggle">
+            <input id="judgeEnabled" type="checkbox" />
+            <span>启用裁判评分</span>
+            <small id="judgeInfo">裁判模型未加载</small>
+          </label>
+        </section>
+
+        <section class="layout-grid" id="setup">
+          <div class="panel setup-panel">
+            <div class="panel-head">
+              <div>
+                <h3>模型接口</h3>
+                <p>最多同时评测 10 个接口，支持 OpenAI 兼容的 chat completions。</p>
+              </div>
+              <button class="icon-button" id="addModelBtn" title="添加模型接口" aria-label="添加模型接口">
+                +
+              </button>
+            </div>
+            <div id="modelList" class="model-list"></div>
+            <div class="actions">
+              <button class="primary-button" id="runBtn">开始评测</button>
+              <button class="ghost-button" id="loadPrivateBtn">加载私有配置</button>
+              <button class="ghost-button" id="loadDemoBtn">填入示例</button>
+            </div>
+          </div>
+
+          <div class="panel" id="dataset">
+            <div class="panel-head">
+              <div>
+                <h3>内置测试集</h3>
+                <p id="datasetDesc">正在读取测试集...</p>
+              </div>
+            </div>
+            <div class="metric-grid">
+              <div class="metric">
+                <span>题目数</span>
+                <strong id="caseCount">-</strong>
+              </div>
+              <div class="metric">
+                <span>能力维度</span>
+                <strong id="categoryCount">-</strong>
+              </div>
+              <div class="metric">
+                <span>接口上限</span>
+                <strong>10</strong>
+              </div>
+            </div>
+            <div class="category-list" id="categoryList"></div>
+            <details class="case-preview" open>
+              <summary>题目预览</summary>
+              <div id="casePreviewList" class="case-preview-list"></div>
+            </details>
+            <div class="note-box">
+              <strong>学习提示</strong>
+              <p>评测工具的核心不是“题目越多越好”，而是题目要稳定覆盖你的业务能力维度，并且每道题都能解释为什么扣分。</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel progress-panel">
+          <div class="panel-head">
+            <div>
+              <h3>运行状态</h3>
+              <p id="progressText">还没有启动评测。</p>
+            </div>
+            <div class="spinner hidden" id="spinner"></div>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" id="progressFill"></div>
+          </div>
+        </section>
+
+        <section class="results hidden" id="result">
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h3>综合排名</h3>
+                <p id="reportMeta">评测完成后自动生成。</p>
+              </div>
+              <div class="report-actions">
+                <a class="ghost-button small" id="jsonReportLink" href="#" target="_blank" rel="noreferrer">JSON</a>
+                <a class="ghost-button small" id="htmlReportLink" href="#" target="_blank" rel="noreferrer">展示报告</a>
+                <a class="primary-button small" id="mdReportLink" href="#" target="_blank" rel="noreferrer">Markdown 报告</a>
+              </div>
+            </div>
+            <div class="ranking-table-wrap">
+              <table class="ranking-table">
+                <thead>
+                  <tr>
+                    <th>排名</th>
+                    <th>模型</th>
+                    <th>总分</th>
+                    <th>分类</th>
+                    <th>通过率</th>
+                    <th>平均延迟</th>
+                  </tr>
+                </thead>
+                <tbody id="rankingBody"></tbody>
+              </table>
+            </div>
+            <div class="separation-box" id="separationBox"></div>
+          </div>
+
+          <div class="result-grid" id="modelCards"></div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <h3>关键结论</h3>
+                <p>用于快速判断哪个模型适合进入下一轮业务验证。</p>
+              </div>
+            </div>
+            <div id="insights" class="insight-list"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <template id="modelTemplate">
+      <div class="model-card">
+        <div class="model-card-head">
+          <strong>模型接口</strong>
+          <button class="text-button remove-model" type="button">删除</button>
+        </div>
+        <div class="form-grid">
+          <input data-field="config_id" type="hidden" />
+          <label>
+            <span>显示名称</span>
+            <input data-field="name" placeholder="例如：Qwen Plus" />
+          </label>
+          <label>
+            <span>模型 ID</span>
+            <input data-field="model" placeholder="例如：qwen-plus" />
+          </label>
+          <label class="wide">
+            <span>Base URL</span>
+            <input data-field="base_url" placeholder="例如：http://localhost:11434/v1" />
+          </label>
+          <label class="wide">
+            <span>API Key</span>
+            <input data-field="api_key" type="password" placeholder="本地模型可留空" />
+          </label>
+        </div>
+      </div>
+    </template>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

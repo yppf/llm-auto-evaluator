@@ -1,0 +1,81 @@
+{
+  "name": "精选高区分度小样本测试集",
+  "version": "0.1.0",
+  "description": "从指令遵循、RAG 忠实性、Agent 决策、代码语义、不确定性和报告解读中挑选的 6 道高区分度题。适合在 API 配额有限时快速筛选强弱。",
+  "scoring_note": "5 个模型完整运行仅需 30 次正式调用。通过硬约束、精确答案和禁用内容减少主观评分。",
+  "cases": [
+    {
+      "id": "quota-format-001",
+      "category": "多约束指令遵循",
+      "difficulty": "挑战",
+      "prompt": "只输出 4 行，不要 Markdown、不要编号。\n第 1 行必须包含“结论”，且不超过 18 个汉字。\n第 2 行必须包含“证据”，且必须出现数字 550。\n第 3 行必须包含“风险”，不能出现“安全”二字。\n第 4 行必须包含“下一步”，且必须以句号结尾。\n\n主题：如何规划 5 小时 550 次 API 调用额度。",
+      "checks": {
+        "line_count": 4,
+        "regex_all": ["^.*结论.*$", "^.*证据.*550.*$", "^.*风险.*$", "^.*下一步.*。$"],
+        "keywords_all": ["结论", "证据", "550", "风险", "下一步"],
+        "forbidden_any": ["```", "#", "- ", "* ", "1.", "2.", "安全"]
+      },
+      "weight": 1.7
+    },
+    {
+      "id": "rag-conflict-001",
+      "category": "RAG 忠实性",
+      "difficulty": "挑战",
+      "prompt": "只根据资料回答。\n\n[doc1] 2026-01-01 起，试用用户每天最多 20 次评测任务。\n[doc2] 2026-04-15 起，付费用户每 5 小时最多 550 次模型调用。\n[doc3] 2025-12-01 旧规则：所有用户每天最多 100 次调用。\n\n问题：付费用户在 2026-06-03 应适用哪条额度规则？必须引用资料编号；不要引用过期规则。",
+      "checks": {
+        "keywords_all": ["doc2", "550", "5 小时", "付费用户"],
+        "forbidden_any": ["doc1", "doc3", "100 次", "20 次", "每天最多 20"]
+      },
+      "weight": 1.8
+    },
+    {
+      "id": "agent-tool-select-001",
+      "category": "Agent 决策",
+      "difficulty": "挑战",
+      "prompt": "你是 Agent，只能选择一个工具调用。\n\n可用工具：\nsearch_docs(query)\nrun_eval(dataset_id, model_ids)\nsend_report(report_id)\n\n用户说：请先确认有哪些评测集可以用，再决定跑哪个。\n\n只输出 JSON：{\"tool\":\"工具名\",\"args\":{\"query\":\"...\"}}",
+      "checks": {
+        "must_be_json": true,
+        "json_keys_all": ["tool", "args"],
+        "keywords_all": ["search_docs"],
+        "forbidden_any": ["run_eval", "send_report", "```", "解释"]
+      },
+      "weight": 1.7
+    },
+    {
+      "id": "code-lambda-output-001",
+      "category": "代码语义理解",
+      "difficulty": "挑战",
+      "prompt": "不要解释，只输出 Python 运行结果，每行一个结果。\n\n```python\nitems = []\nfor i in range(3):\n    items.append(lambda: i)\nprint([fn() for fn in items])\nprint([fn() for fn in (lambda j=j: j for j in range(3))])\n```",
+      "checks": {
+        "regex_all": ["\\[2,\\s*2,\\s*2\\]", "\\[0,\\s*1,\\s*2\\]"],
+        "line_count": 2,
+        "forbidden_any": ["解释", "原因", "```"]
+      },
+      "weight": 1.6
+    },
+    {
+      "id": "unknown-model-001",
+      "category": "事实与不确定性",
+      "difficulty": "进阶",
+      "prompt": "截至 2026-06-03，虚构模型 Zebra-LLM-77B 的训练数据规模是多少？如果无法确认，说明无法确认，并给出 2 个查证路径。不要编造具体数字。",
+      "checks": {
+        "keywords_any": ["无法确认", "不能确认", "没有可靠信息", "虚构"],
+        "keywords_all": ["查证"],
+        "forbidden_any": ["77B 参数所以", "万亿 token", "确定是", "训练数据规模为"]
+      },
+      "weight": 1.5
+    },
+    {
+      "id": "report-top4-gap-001",
+      "category": "报告解读",
+      "difficulty": "挑战",
+      "prompt": "某报告中前四名模型总分分别为 84.4、83.0、82.6、80.1，最后一名为 56.0。\n\n请判断：\n整体是否有区分度？\n前四名是否有足够区分度？\n给出一句结论和一句改进建议。",
+      "checks": {
+        "keywords_all": ["前四名", "区分度"],
+        "keywords_any": ["不足", "不够", "接近", "差距小", "诊断题"],
+        "forbidden_any": ["前四名差异很大", "无需改进"]
+      },
+      "weight": 1.4
+    }
+  ]
+}
